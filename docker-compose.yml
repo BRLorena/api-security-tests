@@ -1,0 +1,16 @@
+# Throwaway database for the app under test. Never point these tests at production data.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sectest
+      POSTGRES_PASSWORD: sectest
+      POSTGRES_DB: finance
+    ports:
+      - "54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sectest -d finance"]
+      interval: 2s
+      retries: 20

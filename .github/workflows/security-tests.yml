@@ -1,0 +1,93 @@
+name: API & security tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+  # Weekly passive ZAP scan of production.
+  schedule:
+    - cron: "0 7 * * 1"
+
+concurrency:
+  group: sec-tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # The app is built from its own repo and run against a throwaway Postgres. The suite
+  # creates junk data, fuzzes inputs and floods logins, so it never touches production.
+  local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sectest
+          POSTGRES_PASSWORD: sectest
+          POSTGRES_DB: finance
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sectest -d finance"
+          --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://sectest:sectest@localhost:5432/finance
+      AUTH_SECRET: ci-security-tests-secret
+      BASE_URL: http://localhost:3100
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Build and start the app under test
+        run: |
+          nohup npm run app > app.log 2>&1 &
+          for i in $(seq 1 120); do
+            curl -sf http://localhost:3100/api/auth/csrf >/dev/null 2>&1 && break
+            sleep 3
+          done
+          curl -sf http://localhost:3100/api/auth/csrf >/dev/null || { echo "app did not start"; tail -40 app.log; exit 1; }
+      - name: API, authz, input and auth tests
+        run: npm test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-report
+          path: reports/playwright-report/
+          retention-days: 14
+      - name: App log
+        if: failure()
+        run: tail -60 app.log
+
+  # Read-only checks against production: security headers and CORS. No data written.
+  prod-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:prod
+
+  # Passive ZAP scan of production: it spiders and inspects responses, sends no attacks.
+  # Weekly and manual only, to keep traffic low.
+  zap-passive:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: ZAP baseline (passive)
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: https://finance-app-nine-dusky.vercel.app
+          # -I: don't fail the build on warnings; the report is the deliverable.
+          cmd_options: "-I"
+          allow_issue_writing: false
