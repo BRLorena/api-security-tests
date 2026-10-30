@@ -11,15 +11,15 @@ test.describe("security headers", () => {
     expect(res.headers()["strict-transport-security"]).toContain("max-age=");
   });
 
-  // The app sets HSTS but none of the other baseline headers. Each is a separate finding so
-  // the report shows exactly which one is missing; they turn green one by one as they're added.
+  // One test per header, so a report shows exactly which one went missing. All four were
+  // absent until finance_app#4 (BUG-13..BUG-16).
   for (const [header, bug] of [
     ["content-security-policy", "BUG-13"],
     ["x-frame-options", "BUG-14"],
     ["x-content-type-options", "BUG-15"],
     ["referrer-policy", "BUG-16"],
   ] as const) {
-    test.fail(`${bug}: ${header} is present`, async ({ request, baseURL }) => {
+    test(`${bug}: ${header} is present`, async ({ request, baseURL }) => {
       const res = await request.get(`${baseURL}/en/login`);
       expect(res.headers()[header], `${header} missing`).toBeTruthy();
     });

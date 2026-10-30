@@ -8,9 +8,9 @@
  * A 500 is an unhandled exception; it is the signature of missing validation. On a failure
  * fast-check shrinks to the smallest input that still triggers it and prints it.
  *
- * These three are test.fail(): the app returns 500 for some generated inputs today, so
- * each property fails and the marker keeps the suite green. Fixing input validation makes
- * the property hold, the test pass, and the marker turn red to be removed.
+ * All three failed before finance_app#4. The date property also found what the fixed-case
+ * test missed: dates that are valid in JavaScript (year 275760) but overflow the database
+ * column. They now hold and stay as regression guards.
  */
 import { test, expect } from "../../src/fixtures";
 import { expenseBody } from "../../src/data";
@@ -26,7 +26,7 @@ const weirdScalars = fc.oneof(
   fc.constant(null),
 );
 
-test.fail("BUG-1/2/3: the amount field never causes a 500", async ({ owner }) => {
+test("BUG-1/2/3: the amount field never causes a 500", async ({ owner }) => {
   await fc.assert(
     fc.asyncProperty(weirdScalars, async (amount) => {
       const res = await owner.api.post("/api/expenses", { data: expenseBody({ amount }) });
@@ -37,7 +37,7 @@ test.fail("BUG-1/2/3: the amount field never causes a 500", async ({ owner }) =>
   );
 });
 
-test.fail("BUG-4: the date field never causes a 500", async ({ owner }) => {
+test("BUG-4: the date field never causes a 500", async ({ owner }) => {
   await fc.assert(
     fc.asyncProperty(fc.oneof(fc.string(), fc.date().map(String), fc.constantFrom("", "2026-13-40", "0000-00-00", "yesterday")), async (date) => {
       const res = await owner.api.post("/api/expenses", { data: expenseBody({ date }) });
@@ -47,7 +47,7 @@ test.fail("BUG-4: the date field never causes a 500", async ({ owner }) => {
   );
 });
 
-test.fail("BUG-6: list pagination params never cause a 500", async ({ owner }) => {
+test("BUG-6: list pagination params never cause a 500", async ({ owner }) => {
   await fc.assert(
     fc.asyncProperty(
       fc.record({ page: fc.oneof(fc.integer(), fc.string()), limit: fc.oneof(fc.integer(), fc.string()) }),
