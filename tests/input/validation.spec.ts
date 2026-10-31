@@ -3,8 +3,9 @@
  * never 500 and never a saved record. A 500 means an unhandled exception reached the user;
  * a 201 on junk means invalid data entered the database.
  *
- * Several of these are known bugs (BUG-1..BUG-5), marked with test.fail(). They turn green
- * when the app validates the input, so the marker is removed together with the fix.
+ * BUG-1..BUG-5 were fixed in finance_app#4 and are now regression guards. Open bugs are
+ * marked with test.fail(): it turns red when the bug is fixed, so the marker is removed
+ * together with the fix.
  */
 import { test, expect } from "../../src/fixtures";
 import { expenseBody, invoiceBody } from "../../src/data";
@@ -13,33 +14,32 @@ import { safeError } from "../../src/schemas";
 const rejects = (status: number) => status === 400;
 
 test.describe("amount", () => {
-  test.fail("BUG-1: a non-numeric amount is a 400, not a 500", async ({ owner }) => {
+  test("BUG-1: a non-numeric amount is a 400, not a 500", async ({ owner }) => {
     const res = await owner.api.post("/api/expenses", { data: expenseBody({ amount: "abc" }) });
     expect(res.status(), await res.text()).toBe(400);
   });
 
-  test.fail("BUG-2: an out-of-range amount (1e400 -> Infinity) is rejected", async ({ owner }) => {
+  test("BUG-2: an out-of-range amount (1e400 -> Infinity) is rejected", async ({ owner }) => {
     const res = await owner.api.post("/api/expenses", { data: expenseBody({ amount: "1e400" }) });
     expect(rejects(res.status())).toBe(true);
   });
 
-  test.fail("BUG-3: a negative amount is rejected", async ({ owner }) => {
-    // The Zod schema says amount must be positive, but the string form schema is used on
-    // the route instead, so -500 is saved and flips net income positive.
+  test("BUG-3: a negative amount is rejected", async ({ owner }) => {
+    // Before the fix, -500 was saved and flipped a no-income account's net income positive.
     const res = await owner.api.post("/api/expenses", { data: expenseBody({ amount: "-500" }) });
     expect(res.status(), `saved ${res.status()}`).toBe(400);
   });
 });
 
 test.describe("date", () => {
-  test.fail("BUG-4: an unparseable date is a 400, not a 500", async ({ owner }) => {
+  test("BUG-4: an unparseable date is a 400, not a 500", async ({ owner }) => {
     const res = await owner.api.post("/api/expenses", { data: expenseBody({ date: "not-a-date" }) });
     expect(res.status(), await res.text()).toBe(400);
   });
 });
 
 test.describe("length", () => {
-  test.fail("BUG-5: an unbounded description is rejected", async ({ owner }) => {
+  test("BUG-5: an unbounded description is rejected", async ({ owner }) => {
     const res = await owner.api.post("/api/expenses", { data: expenseBody({ description: "x".repeat(100_000) }) });
     expect(rejects(res.status())).toBe(true);
   });

@@ -20,26 +20,28 @@ The strict Zod schemas also guard against **over-exposure**: an unexpected field
 
 ## Findings
 
-16 issues were confirmed against the app. Each is a `test.fail()` test: the suite stays green while the bug exists and turns **red when it is fixed**, so the marker is removed together with the fix.
+16 issues were confirmed against the app and tracked as [GitHub issues](https://github.com/BRLorena/api-security-tests/issues?q=is%3Aissue). **11 are fixed** in [finance_app#4](https://github.com/BRLorena/finance_app/pull/4); 5 are still open, 2 of them design-level.
 
-| ID | Endpoint | What happens | Risk | OWASP API |
-|---|---|---|---|---|
-| BUG-1 | `POST /api/expenses` | A non-numeric `amount` (`"abc"`) reaches `parseFloat` and the route answers **500** | Unhandled error, no validation | API8 |
-| BUG-2 | `POST /api/expenses` | `amount: "1e400"` becomes `Infinity` and the DB write fails with a **500** | Unhandled error | API8 |
-| BUG-3 | `POST /api/expenses` | A **negative amount is saved** (`-500`). The schema says amounts are positive, but the route uses the string form schema, which doesn't check it. A single `-500` expense flips a no-income account's net income to **+474** | Data integrity, corrupted reports | API8 |
-| BUG-4 | `POST /api/expenses` | An unparseable `date` answers **500**, not 400 | Unhandled error | API8 |
-| BUG-5 | `POST /api/expenses` | **No length limit** on `description`: a 100,000-character string is stored in full | Resource consumption, storage abuse | API4 |
-| BUG-6 | `GET /api/expenses` | `page=0` answers **500**; `limit=abc` answers **500**; `limit=100000` is accepted with no cap | Unhandled error, resource consumption | API4 |
-| BUG-7 | `POST /api/invoices` | `invoiceNumber` is globally unique, so reusing a number another user already has answers **500**. That doubles as an oracle: it confirms the number exists and lets an attacker claim numbers before their owner | Enumeration, denial of a resource | API3 |
-| BUG-8 | `GET /api/summary` | A bad `year` throws inside Prisma and the route returns `error.message` in a `details` field, **leaking the ORM query and column names** to the client | Internal disclosure | API8 |
-| BUG-9 | `POST /api/auth/callback/credentials` | **No rate limit on login.** Register and the data APIs are throttled; the credentials callback is not, so passwords can be brute-forced | Brute force | API2 |
-| BUG-10 | `POST /api/auth/signout` | **Signing out does not invalidate the session token.** JWT sessions are stateless, so a captured token still works for up to 30 days after logout | Session lifetime | API2 |
-| BUG-11 | `POST /api/register` | The error names the condition — *"User with this email already exists"* — and login timing differs (≈5 ms for an unknown email vs ≈370 ms for a known one, because bcrypt only runs when the user exists). Both reveal whether an email has an account | Account enumeration | API2 |
-| BUG-12 | `POST /api/register` | A trivially weak password (`"123456"`) is accepted; the only rule is 6 characters | Weak credentials | API2 |
-| BUG-13 | app pages | No `Content-Security-Policy` header | Missing hardening | API8 |
-| BUG-14 | app pages | No `X-Frame-Options` (clickjacking) | Missing hardening | API8 |
-| BUG-15 | app pages | No `X-Content-Type-Options: nosniff` | Missing hardening | API8 |
-| BUG-16 | app pages | No `Referrer-Policy` | Missing hardening | API8 |
+Each open finding is a `test.fail()` test: the suite stays green while the bug exists and turns **red when it is fixed**, so the marker is removed together with the fix. That is how the fixes above were verified: the 11 guards flipped to "expected to fail, but passed" on the fix branch, and are now ordinary passing tests that fail if the bug comes back.
+
+| ID | Endpoint | What happens | Risk | OWASP API | Status |
+|---|---|---|---|---|---|
+| BUG-1 | `POST /api/expenses` | A non-numeric `amount` (`"abc"`) reaches `parseFloat` and the route answers **500** | Unhandled error, no validation | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#1](https://github.com/BRLorena/api-security-tests/issues/1) |
+| BUG-2 | `POST /api/expenses` | `amount: "1e400"` becomes `Infinity` and the DB write fails with a **500** | Unhandled error | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#2](https://github.com/BRLorena/api-security-tests/issues/2) |
+| BUG-3 | `POST /api/expenses` | A **negative amount is saved** (`-500`). The schema says amounts are positive, but the route uses the string form schema, which doesn't check it. A single `-500` expense flips a no-income account's net income to **+474** | Data integrity, corrupted reports | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#3](https://github.com/BRLorena/api-security-tests/issues/3) |
+| BUG-4 | `POST /api/expenses` | An unparseable `date` answers **500**, not 400 | Unhandled error | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#4](https://github.com/BRLorena/api-security-tests/issues/4) |
+| BUG-5 | `POST /api/expenses` | **No length limit** on `description`: a 100,000-character string is stored in full | Resource consumption, storage abuse | API4 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#5](https://github.com/BRLorena/api-security-tests/issues/5) |
+| BUG-6 | `GET /api/expenses` | `page=0` answers **500**; `limit=abc` answers **500**; `limit=100000` is accepted with no cap | Unhandled error, resource consumption | API4 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#6](https://github.com/BRLorena/api-security-tests/issues/6) |
+| BUG-7 | `POST /api/invoices` | `invoiceNumber` is globally unique, so reusing a number another user already has answers **500**. That doubles as an oracle: it confirms the number exists and lets an attacker claim numbers before their owner | Enumeration, denial of a resource | API3 | Open · [#7](https://github.com/BRLorena/api-security-tests/issues/7) |
+| BUG-8 | `GET /api/summary` | A bad `year` throws inside Prisma and the route returns `error.message` in a `details` field, **leaking the ORM query and column names** to the client | Internal disclosure | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#8](https://github.com/BRLorena/api-security-tests/issues/8) |
+| BUG-9 | `POST /api/auth/callback/credentials` | **No rate limit on login.** Register and the data APIs are throttled; the credentials callback is not, so passwords can be brute-forced | Brute force | API2 | Open · [#9](https://github.com/BRLorena/api-security-tests/issues/9) |
+| BUG-10 | `POST /api/auth/signout` | **Signing out does not invalidate the session token.** JWT sessions are stateless, so a captured token still works for up to 30 days after logout | Session lifetime | API2 | Open, design-level · [#15](https://github.com/BRLorena/api-security-tests/issues/15) |
+| BUG-11 | `POST /api/register` | The error names the condition — *"User with this email already exists"* — and login timing differs (≈5 ms for an unknown email vs ≈370 ms for a known one, because bcrypt only runs when the user exists). Both reveal whether an email has an account | Account enumeration | API2 | Open, design-level · [#16](https://github.com/BRLorena/api-security-tests/issues/16) |
+| BUG-12 | `POST /api/register` | A trivially weak password (`"123456"`) is accepted; the only rule is 6 characters | Weak credentials | API2 | Open · [#10](https://github.com/BRLorena/api-security-tests/issues/10) |
+| BUG-13 | app pages | No `Content-Security-Policy` header | Missing hardening | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#11](https://github.com/BRLorena/api-security-tests/issues/11) |
+| BUG-14 | app pages | No `X-Frame-Options` (clickjacking) | Missing hardening | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#12](https://github.com/BRLorena/api-security-tests/issues/12) |
+| BUG-15 | app pages | No `X-Content-Type-Options: nosniff` | Missing hardening | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#13](https://github.com/BRLorena/api-security-tests/issues/13) |
+| BUG-16 | app pages | No `Referrer-Policy` | Missing hardening | API8 | ✅ [Fixed](https://github.com/BRLorena/finance_app/pull/4) · [#14](https://github.com/BRLorena/api-security-tests/issues/14) |
 
 ## Controls that passed (regression guards)
 
