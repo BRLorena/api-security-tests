@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ZAP baseline (passive)
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: https://finance-app-nine-dusky.vercel.app
           # -I: don't fail the build on warnings; the report is the deliverable.
